@@ -4,11 +4,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
-const userControllers_js_1 = require("../controllers/userControllers.js");
 const protectRoute_js_1 = __importDefault(require("../middlewares/protectRoute.js"));
+const messagesController_js_1 = require("../controllers/messagesController.js");
 const router = express_1.default.Router();
-router.get("/me", protectRoute_js_1.default, userControllers_js_1.getMe);
-router.post("/signup", userControllers_js_1.signup);
-router.post("/login", userControllers_js_1.login);
-router.post("/logout", userControllers_js_1.logout);
+router.get("/conversations", protectRoute_js_1.default, messagesController_js_1.getUsersForSidebar);
+router.get("/:id", protectRoute_js_1.default, messagesController_js_1.getMessages);
+router.post("/send/:id", protectRoute_js_1.default, messagesController_js_1.sendMessage);
 exports.default = router;
