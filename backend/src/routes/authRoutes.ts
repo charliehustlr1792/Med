@@ -1,18 +1,12 @@
-import { Router } from "express";
-import {checkToken} from "../middlewares/checkToken";
-import { jwtChecking, userLogIn,userSignUp } from "../controllers/userControllers";
+import express from "express";
+import { login, logout, signup, getMe } from "../controllers/userControllers.js";
+import protectRoute from "../middlewares/protectRoute.js";
 
+const router = express.Router();
 
-const route = Router();
+router.get("/me", protectRoute, getMe);
+router.post("/signup", signup);
+router.post("/login", login);
+router.post("/logout", logout);
 
-enum scode {
-  Ok=200,
-  Cbad = 400
-} 
-
-route.post('/signup',userSignUp);
-route.post('/login',userLogIn)
-route.get('/jwtChecking',checkToken,jwtChecking);
-
-
-export default route;
+export default router;

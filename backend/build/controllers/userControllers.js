@@ -12,128 +12,117 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.jwtChecking = exports.userSignUp = exports.userLogIn = void 0;
-const express_1 = require("express");
-const client_1 = __importDefault(require("../client"));
-const bcrypt = require('bcryptjs');
-const jwt = require("jsonwebtoken");
-const route = (0, express_1.Router)();
-var scode;
-(function (scode) {
-    scode[scode["Ok"] = 200] = "Ok";
-    scode[scode["Cbad"] = 400] = "Cbad";
-})(scode || (scode = {}));
-const userSignUp = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    client_1.default.user.findMany({
-        where: {
-            OR: [
-                {
-                    email: req.body.email
-                },
-                {
-                    uname: req.body.uname
-                }
-            ]
+exports.getMe = exports.logout = exports.login = exports.signup = void 0;
+const prisma_js_1 = __importDefault(require("../db/prisma.js"));
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
+const generateToken_js_1 = __importDefault(require("../utils/generateToken.js"));
+const signup = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { username, fullName, email, password, confirmPassword, gender, role } = req.body;
+        if (!fullName || !username || !password || !confirmPassword || !gender) {
+            return res.status(400).json({ error: "Please fill in all fields" });
         }
-    }).then((data) => __awaiter(void 0, void 0, void 0, function* () {
-        if (data.length != 0) {
-            data.forEach(e => {
-                res.status(400);
-                if (e.email === req.body.email) {
-                    res.send({
-                        msg: "emailExist"
-                    });
-                }
-                else if (e.uname === req.body.uname) {
-                    res.send({
-                        msg: "userExist"
-                    });
-                }
+        if (password !== confirmPassword) {
+            return res.status(400).json({ error: "Passwords don't match" });
+        }
+        const user = yield prisma_js_1.default.user.findUnique({ where: { email } });
+        if (user) {
+            return res.status(400).json({ error: "Username already exists" });
+        }
+        const salt = yield bcryptjs_1.default.genSalt(10);
+        const hashedPassword = yield bcryptjs_1.default.hash(password, salt);
+        const patientMaleProfilePic = `https://avatar.iran.liara.run/public/boy?username=${username}`;
+        const patientFemaleProfilePic = `https://avatar.iran.liara.run/public/girl?username=${username}`;
+        const doctorMaleProfilePic = "https://avatar.iran.liara.run/public/job/doctor/male";
+        const doctorFemaleProfilePic = "https://avatar.iran.liara.run/public/job/doctor/female";
+        const newUser = yield prisma_js_1.default.user.create({
+            data: {
+                fullName: role === "doctor" ? `Dr. ${fullName}` : fullName,
+                username,
+                email,
+                password: hashedPassword,
+                gender,
+                role,
+                profilePic: role === "doctor" ? gender === "male" ? doctorMaleProfilePic : doctorFemaleProfilePic : gender === "male" ? patientMaleProfilePic : patientFemaleProfilePic,
+            },
+        });
+        if (newUser) {
+            (0, generateToken_js_1.default)(newUser.id, res);
+            res.status(201).json({
+                id: newUser.id,
+                fullName: newUser.fullName,
+                username: newUser.username,
+                profilePic: newUser.profilePic,
+                email: newUser.email,
+                role: newUser.role
             });
         }
         else {
-            //no user present like that
-            const hashed = yield bcrypt.hash(req.body.password, 10);
-            client_1.default.user.create({
-                data: {
-                    email: req.body.email,
-                    uname: req.body.uname,
-                    password: hashed,
-                }
-            }).then(data => {
-                res.status(200);
-                res.send({
-                    msg: "userCreated"
-                });
-            }).catch(e => {
-                console.log("error : \n", e);
-                res.status(500);
-                res.send();
-            });
+            res.status(400).json({ error: "Invalid user data" });
         }
-    })).catch(e => {
-        console.log("error : \n", e);
-        res.status(500);
-        res.send();
-    });
+    }
+    catch (error) {
+        console.log("Error in signup controller", error.message);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
 });
-exports.userSignUp = userSignUp;
-const userLogIn = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    client_1.default.user.findUnique({
-        where: {
-            email: req.body.email,
+exports.signup = signup;
+const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { email, password } = req.body;
+        const user = yield prisma_js_1.default.user.findUnique({ where: { email } });
+        if (!user) {
+            return res.status(400).json({ error: "Invalid credentials" });
         }
-    }).then((data) => __awaiter(void 0, void 0, void 0, function* () {
-        if (data == null) {
-            res.status(400);
-            res.send({ msg: "userNotFound" });
+        const isPasswordCorrect = yield bcryptjs_1.default.compare(password, user.password);
+        if (!isPasswordCorrect) {
+            return res.status(400).json({ error: "Invalid credentials" });
         }
-        else {
-            const comp = yield bcrypt.compare(req.body.password, data.password);
-            if (!comp) {
-                res.status(404).json({
-                    msg: "incorrectPassword"
-                });
-            }
-            try {
-                jwt.sign({
-                    userName: data.uname,
-                    rand: Math.random()
-                }, process.env.JWTSECRET, (err, token) => {
-                    if (err) {
-                        res.status(500);
-                        res.send({
-                            msg: "tokenGenerationFailed"
-                        });
-                        console.log(err);
-                    }
-                    else {
-                        res.status(200);
-                        res.send({
-                            msg: "loginSuccesfull",
-                            jwtToken: token
-                        });
-                    }
-                });
-            }
-            catch (err) {
-                console.log(err);
-                res.status(500);
-                res.send({
-                    msg: "serverIssue"
-                });
-            }
-        }
-    })).catch(err => {
-        console.log("error : \n", err);
-        res.status(500);
-        res.send();
-    });
+        (0, generateToken_js_1.default)(user.id, res);
+        res.status(200).json({
+            id: user.id,
+            fullName: user.fullName,
+            username: user.username,
+            profilePic: user.profilePic,
+            email: user.email,
+            role: user.role
+        });
+    }
+    catch (error) {
+        console.log("Error in login controller", error.message);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
 });
-exports.userLogIn = userLogIn;
-const jwtChecking = (req, res) => {
-    res.status(200).json({
-        msg: "jwt working fine"
-    });
-};
-exports.jwtChecking = jwtChecking;
+exports.login = login;
+const logout = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        res.cookie("jwt", "", { maxAge: 0 });
+        res.status(200).json({ message: "Logged out successfully" });
+    }
+    catch (error) {
+        console.log("Error in logout controller", error.message);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+exports.logout = logout;
+const getMe = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const user = yield prisma_js_1.default.user.findUnique({ where: { id: req.user.id } });
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
+        res.status(200).json({
+            id: user.id,
+            fullName: user.fullName,
+            username: user.username,
+            profilePic: user.profilePic,
+            email: user.email,
+            role: user.role
+        });
+    }
+    catch (error) {
+        console.log("Error in getMe controller", error.message);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+exports.getMe = getMe;
